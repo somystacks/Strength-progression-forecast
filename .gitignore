@@ -1,0 +1,10 @@
+# macOS system files
+.DS_Store
+
+# Ignore all data artifacts
+data/*
+
+# But keep directory structure
+!data/raw/
+!data/raw/.gitkeep
+

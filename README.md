@@ -44,6 +44,19 @@ This script executes the following steps:
 
 The pipeline generates the following outputs:
 
+---
+
+## Forecast Examples (75% adherence)
+
+### Bench Press
+![Bench Forecast](docs/assets/plots/bench_press_forecast.png)
+
+### Squat
+![Squat Forecast](docs/assets/plots/squat_forecast.png)
+
+### Deadlift
+![Deadlift Forecast](docs/assets/plots/deadlift_forecast.png)
+
 ### Raw Data
 ```
 data/raw/strong_sets_latest.csv

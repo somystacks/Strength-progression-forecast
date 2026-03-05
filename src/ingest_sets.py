@@ -1,23 +1,19 @@
 from __future__ import annotations
 
-import os
 import sqlite3
 import pandas as pd
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CSV_PATH = os.path.join(REPO_ROOT, "data", "raw", "strong_sets_initial.csv")
-DB_PATH = os.path.join(REPO_ROOT, "data", "training.sqlite")
+from config import DB_PATH, CSV_LATEST_PATH, ALLOWED_EXERCISES, REQUIRED_COLUMNS
 
-REQUIRED_COLUMNS = ["date", "exercise", "weight_kg",
-                    "reps", "set_number", "session_name"]
-ALLOWED_EXERCISES = {"Squat", "Bench Press", "Deadlift"}
+CSV_PATH = CSV_LATEST_PATH
 
 
 def main() -> None:
     print("ingest_sets.py started. This will read the CSV, validate and clean the data, and load it into a SQLite database.")
-    if not os.path.exists(CSV_PATH):
+    if not CSV_PATH.exists():  # Check if the CSV file exists
         raise FileNotFoundError(f"CSV file not found at {CSV_PATH}")
-    df = pd.read_csv(CSV_PATH)
+    # Read the CSV file into a DataFrame (CSV_PATH)
+    df = pd.read_csv(str(CSV_PATH))
 
     # Basic schema validation
     missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
@@ -61,8 +57,11 @@ def main() -> None:
     df["session_id"] = df["date"] + " | " + df["session_name"]
 
     # Create DB + table and load
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH))
+
+    rows = list(df[["date", "exercise", "weight_kg", "reps", "set_number", "session_name", "session_id"]]
+                .itertuples(index=False, name=None))
 
     with conn:
         conn.execute("""
@@ -78,11 +77,18 @@ def main() -> None:
             );
         """)
 
-       # Replace table contents each run (idempotent for now, we can change this later if we want to keep history of changes)
-        conn.execute("DELETE FROM sets;")  # Delete all existing rows
+        # Enforce idempotency: one row per (date, session_name, exercise, set_number)
+        conn.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_sets_unique
+            ON sets(date, session_name, exercise, set_number);
+        """)
 
-    # Load the cleaned DataFrame into the SQLite database
-    df.to_sql("sets", conn, if_exists="append", index=False)
+    with conn:
+        conn.executemany("""
+            INSERT OR REPLACE INTO sets
+            (date, exercise, weight_kg, reps, set_number, session_name, session_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?);
+        """, rows)
 
     # Quick sanity check
     cur = conn.cursor()  # Create a cursor

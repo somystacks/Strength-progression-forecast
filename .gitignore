@@ -1,10 +1,24 @@
 # macOS system files
 .DS_Store
 
-# Ignore all data artifacts
-data/*
+# Ignore database artifacts
+data/*.sqlite
 
-# But keep directory structure
+# Ignore intermediate generated files
+data/tmp/
+
+# Keep raw data
 !data/raw/
-!data/raw/.gitkeep
+!data/raw/*.csv
 
+# credentials
+secrets/
+*.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Local environments
+.venv/
+.env

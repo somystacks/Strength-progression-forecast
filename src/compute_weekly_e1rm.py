@@ -2,8 +2,7 @@ import os
 import sqlite3
 import pandas as pd
 
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(REPO_ROOT, "data", "training.sqlite")
+from config import DB_PATH
 
 
 # Helper function to get the Monday of the week for a given date series
@@ -16,7 +15,7 @@ def week_start_monday(date_series: pd.Series) -> pd.Series:
 def main():
     print("compute_weekly_e1rm.py started. This will compute the weekly E1RM for each exercise and load it into the database.")
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(str(DB_PATH))
     # Read the sets data from the database
     df = pd.read_sql_query(
         "SELECT date, exercise, weight_kg, reps FROM sets;", conn)

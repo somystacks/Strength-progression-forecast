@@ -1,0 +1,43 @@
+date,exercise,weight_kg,reps,set_number,session_name
+2026-02-02,Bench Press,75,5,1,Upper_strength_chest
+2026-02-02,Bench Press,87.2,5,2,Upper_strength_chest
+2026-02-02,Bench Press,100,5,3,Upper_strength_chest
+2026-02-03,Squat,125,5,1,Lower_strength_squat
+2026-02-03,Squat,125,5,2,Lower_strength_squat
+2026-02-03,Squat,137.5,5,3,Lower_strength_squat
+2026-02-06,Deadlift,135,5,1,Lower_hypertrophy_CDL
+2026-02-06,Deadlift,155,5,2,Lower_hypertrophy_CDL
+2026-02-06,Deadlift,175,5,3,Lower_hypertrophy_CDL
+2026-02-09,Bench Press,85,3,1,Upper_strength_chest
+2026-02-09,Bench Press,95,3,2,Upper_strength_chest
+2026-02-09,Bench Press,105,3,3,Upper_strength_chest
+2026-02-10,Squat,112.5,3,1,Lower_strength_squat
+2026-02-10,Squat,130,3,2,Lower_strength_squat
+2026-02-10,Squat,145,3,3,Lower_strength_squat
+2026-02-13,Deadlift,145,3,1,Lower_hypertrophy_CDL
+2026-02-13,Deadlift,165,3,2,Lower_hypertrophy_CDL
+2026-02-13,Deadlift,185,3,3,Lower_hypertrophy_CDL
+2026-02-16,Bench Press,87.5,5,1,Upper_strength_chest
+2026-02-16,Bench Press,100,3,2,Upper_strength_chest
+2026-02-16,Bench Press,112.5,3,3,Upper_strength_chest
+2026-02-17,Squat,123,5,1,Lower_strength_squat
+2026-02-17,Squat,138,3,2,Lower_strength_squat
+2026-02-17,Squat,155,3,3,Lower_strength_squat
+2026-02-20,Deadlift,155,5,1,Lower_hypertrophy_CDL
+2026-02-20,Deadlift,175,3,2,Lower_hypertrophy_CDL
+2026-02-20,Deadlift,198,3,3,Lower_hypertrophy_CDL
+2026-02-23,Bench Press,47.5,5,1,Upper_strength_chest
+2026-02-23,Bench Press,60,5,2,Upper_strength_chest
+2026-02-23,Bench Press,70,5,3,Upper_strength_chest
+2026-02-24,Squat,60,5,1,Lower_strength_squat
+2026-02-24,Squat,80,5,2,Lower_strength_squat
+2026-02-24,Squat,100,5,3,Lower_strength_squat
+2026-02-27,Deadlift,85,5,1,Lower_hypertrophy_CDL
+2026-02-27,Deadlift,105,5,2,Lower_hypertrophy_CDL
+2026-02-27,Deadlift,125,5,3,Lower_hypertrophy_CDL
+2026-03-02,Bench Press,78,5,1,Upper_strength_chest
+2026-03-02,Bench Press,90,5,2,Upper_strength_chest
+2026-03-02,Bench Press,103,5,3,Upper_strength_chest
+2026-03-03,Squat,110,5,1,Lower_strength_squat
+2026-03-03,Squat,125,5,2,Lower_strength_squat
+2026-03-03,Squat,143,8,3,Lower_strength_squat

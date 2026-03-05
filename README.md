@@ -46,6 +46,12 @@ The pipeline generates the following outputs:
 
 ---
 
+## Latest Strength Snapshot
+
+| Lift | Latest week | Latest e1RM (kg) | Forecast horizon week | Forecast p50 (kg) | Uncertainty width p90–p10 (kg) |
+|------|-------------|-------------------|-----------------------|-------------------|--------------------------------|
+PASTE_TABLE_HERE
+
 ## Forecast Examples (75% adherence)
 
 ### Bench Press

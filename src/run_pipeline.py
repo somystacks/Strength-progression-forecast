@@ -21,6 +21,7 @@ def main() -> None:
     run([py, "src/ingest_sets.py"])
     run([py, "src/compute_weekly_e1rm.py"])
     run([py, "src/build_forecasts.py"])
+    run([py, "src/generate_kpi_snapshot.py"])
 
     print("\n✅ Pipeline refresh complete: pull → ingest → weekly_e1rm → forecast_bands")
 

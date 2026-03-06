@@ -22,8 +22,9 @@ def main() -> None:
     run([py, "src/compute_weekly_e1rm.py"])
     run([py, "src/build_forecasts.py"])
     run([py, "src/generate_kpi_snapshot.py"])
+    run([py, "src/generate_forecast_plots.py"])
 
-    print("\n✅ Pipeline refresh complete: pull → ingest → weekly_e1rm → forecast_bands")
+    print("\n✅ Pipeline refresh complete: pull → ingest → weekly_e1rm → forecast_bands → kpi_snapshot → plots")
 
 
 if __name__ == "__main__":

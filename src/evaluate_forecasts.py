@@ -17,27 +17,49 @@ def main() -> None:
             conn,
         )
 
-        bands = pd.read_sql_query(
+        vintages = pd.read_sql_query(
             """
-            SELECT week_start, exercise, scenario, p10, p50, p90
-            FROM forecast_bands
+            SELECT
+                generated_at,
+                forecast_week,
+                exercise,
+                scenario,
+                p10,
+                p50,
+                p90
+            FROM forecast_vintages
             WHERE scenario = '75%'
             """,
             conn,
         )
 
         weekly["week_start"] = pd.to_datetime(weekly["week_start"])
-        bands["week_start"] = pd.to_datetime(bands["week_start"])
+        vintages["generated_at"] = pd.to_datetime(vintages["generated_at"])
+        vintages["forecast_week"] = pd.to_datetime(vintages["forecast_week"])
+
+        latest_vintages = (
+            vintages.sort_values([
+                "exercise",
+                "forecast_week",
+                "generated_at"
+            ])
+            .groupby([
+                "exercise",
+                "forecast_week"
+            ], as_index=False)
+            .tail(1)
+        )
 
         df = weekly.merge(
-            bands,
-            on=["week_start", "exercise"],
+            latest_vintages,
+            left_on=["week_start", "exercise"],
+            right_on=["forecast_week", "exercise"],
             how="inner",
         )
 
         # New Guard
         if df.empty:
-            print("No overlapping actual and forecast data yet. Evaluation deferred.")
+            print("No overlapping actual and forecast vintage yet. Evaluation deferred.")
             return
 
         # Avoid division by zero

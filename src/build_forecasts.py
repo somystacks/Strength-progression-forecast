@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple
 
 import sqlite3
@@ -35,7 +37,6 @@ def estimate_sigma_from_diffs(weekly: pd.DataFrame) -> pd.Series:
     With few weeks of data, a deload week creates a huge negative diff
     that inflates std and makes forecast bands explode.
     """
-
     wk = weekly.copy()
     wk["week_start"] = pd.to_datetime(wk["week_start"], errors="raise")
     wk = wk.sort_values(["exercise", "week_start"])
@@ -70,7 +71,8 @@ def estimate_sigma_from_diffs(weekly: pd.DataFrame) -> pd.Series:
     }
 
     for lift, floor in sigma_floor.items():
-        sigma[lift] = max(sigma.get(lift, floor), floor)
+        current_val = sigma.get(lift, floor)
+        sigma[lift] = max(current_val, floor)
 
     return sigma
 
@@ -91,135 +93,183 @@ def simulate_paths(
 
     Then add Gaussian noise each week, and cum-sum to get the projected e1RM.
     """
-
     rng = np.random.default_rng(seed)
     t = np.arange(weeks_ahead)
 
-    # calculate the expected weekly gains with diminishing returns and adherence multiplier
+    # Calculate the expected weekly gains with diminishing returns and adherence multiplier
     expected_gain = (delta0 / np.log1p(t + k)) * adherence_mult
-    # cap the expected gain to the initial gain
+    # Cap the expected gain to the initial gain
     expected_gain = np.minimum(expected_gain, delta0)
 
-    # generate random noise for each simulation path and week based on the specified sigma
+    # Generate random noise for each simulation path and week based on the specified sigma
     noise = rng.normal(loc=0, scale=sigma, size=(n_sims, weeks_ahead))
 
-    # calculate the weekly increments by adding the expected gain and random noise
+    # Calculate the weekly increments by adding the expected gain and random noise
     increments = expected_gain + noise
-    # calculate the cumulative sum of increments to get the projected e1RM for each week, starting from the initial e1RM (e0)
-    # calculate the cumulative sum of increments to get the projected e1RM for each week, starting from the initial e1RM (e0)
-    paths = np.cumsum(increments, axis=1) + e0
-    # cap the projected e1RM at 85% of the initial e1RM
-    paths = np.maximum(paths, e0 * 0.85)
 
-    # Anchor week 0 to the initial e1RM
-    paths[:, 0] = e0
+    # Calculate the cumulative sum of increments to get the projected e1RM for each week,
+    # starting from the initial e1RM (e0).
+    # Note: paths[:, 0] represents e1RM after week 1, not the starting point.
+    paths = np.cumsum(increments, axis=1) + e0
+
+    # Cap the projected e1RM at 85% of the initial e1RM (floor)
+    paths = np.maximum(paths, e0 * 0.85)
 
     return paths
 
 
-def main():
+def main() -> None:
     print("Build_forecasts.py started, Reading weekly_e1rm and writing forecast bands...")
+    generated_at = datetime.now(timezone.utc).date().isoformat()
 
     conn = sqlite3.connect(str(DB_PATH))
-    weekly = pd.read_sql_query(
-        "SELECT * FROM weekly_e1rm ORDER BY week_start, exercise", conn,)
 
-    if weekly.empty:
-        conn.close()
-        raise ValueError(
-            "weekly_e1rm is empty. Run compute_weekly_e1rm.py first.")
+    try:
+        weekly = pd.read_sql_query(
+            "SELECT * FROM weekly_e1rm ORDER BY week_start, exercise", conn
+        )
 
-    # Keep only modeled lifts
-    weekly = weekly[weekly["exercise"].isin(ALLOWED_EXERCISES)].copy()
-    # convert week_start column to datetime
-    weekly["week_start"] = pd.to_datetime(weekly["week_start"], errors="raise")
+        if weekly.empty:
+            raise ValueError(
+                "weekly_e1rm is empty. Run compute_weekly_e1rm.py first.")
 
-    # Determine the forecast grid: weekly Mondays from the latest observed week_start
-    last_week = weekly["week_start"].max()
-    # generate a range of forecast weeks starting from the last observed week
-    forecast_weeks = pd.date_range(
-        start=last_week + pd.Timedelta(weeks=1), periods=WEEKS_AHEAD, freq="W-MON")
+        # Keep only modeled lifts
+        weekly = weekly[weekly["exercise"].isin(ALLOWED_EXERCISES)].copy()
+        # Convert week_start column to datetime
+        weekly["week_start"] = pd.to_datetime(
+            weekly["week_start"], errors="raise")
 
-    # Latest observed e0 per lift
-    latest = (
-        weekly.sort_values("week_start")
-        .groupby("exercise", as_index=False)
-        .tail(1)
-        .set_index("exercise")
-    )
+        # Determine the forecast grid: weekly Mondays from the latest observed week_start
+        last_week = weekly["week_start"].max()
+        # Generate a range of forecast weeks starting from the last observed week
+        forecast_weeks = pd.date_range(
+            start=last_week + pd.Timedelta(weeks=1), periods=WEEKS_AHEAD, freq="W-MON")
 
-    sigma_by_lift = estimate_sigma_from_diffs(weekly)
+        # Latest observed e0 per lift
+        latest = (
+            weekly.sort_values("week_start")
+            .groupby("exercise", as_index=False)
+            .tail(1)
+            .set_index("exercise")
+        )
 
-    rows_out: List[Tuple[str, str, str, float,
-                         float, float, float, float]] = []
+        sigma_by_lift = estimate_sigma_from_diffs(weekly)
 
-    for exercise in sorted(ALLOWED_EXERCISES):
-        if exercise not in latest.index:
-            print(f"skipping {exercise}, no weekly data yet.")
-            continue
+        rows_out: List[Tuple[str, str, str, float,
+                             float, float, float, float]] = []
+        vintage_rows: List[Tuple[str, str, str, str,
+                                 float, float, float, float, float]] = []
 
-        # get the latest observed e1RM for the exercise
-        e0 = float(latest.loc[exercise, "e1rm"])
-        # default to 0.5 if exercise is not in BASELINE_GAINS
-        delta0 = float(BASELINE_GAINS.get(exercise, 0.5))
-        # default to 1.0 if exercise is not in sigma_by_lift
-        sigma = float(sigma_by_lift.get(exercise, 1.0))
+        for exercise in sorted(ALLOWED_EXERCISES):
+            if exercise not in latest.index:
+                print(f"Skipping {exercise}, no weekly data yet.")
+                continue
 
-        for scenario, mult in SCENARIOS.items():
-            paths = simulate_paths(
-                e0=e0,
-                delta0=delta0,
-                weeks_ahead=WEEKS_AHEAD,
-                adherence_mult=mult,
-                sigma=sigma,
-                k=K,
-                n_sims=N_SIMS,
-                seed=SEED,
-            )
+            # Get the latest observed e1RM for the exercise
+            e0 = float(latest.loc[exercise, "e1rm"])
+            # Default to 0.5 if exercise is not in BASELINE_GAINS
+            delta0 = float(BASELINE_GAINS.get(exercise, 0.5))
+            # Default to 1.0 if exercise is not in sigma_by_lift
+            sigma = float(sigma_by_lift.get(exercise, 1.0))
 
-            p5, p10, p50, p90, p95 = np.percentile(
-                paths, [5, 10, 50, 90, 95], axis=0)
-
-            for i, wk in enumerate(forecast_weeks):
-                rows_out.append(
-                    (
-                        wk.date().isoformat(),
-                        exercise,
-                        scenario,
-                        float(p5[i]),
-                        float(p10[i]),
-                        float(p50[i]),
-                        float(p90[i]),
-                        float(p95[i]),
-                    )
+            for scenario, mult in SCENARIOS.items():
+                paths = simulate_paths(
+                    e0=e0,
+                    delta0=delta0,
+                    weeks_ahead=WEEKS_AHEAD,
+                    adherence_mult=mult,
+                    sigma=sigma,
+                    k=K,
+                    n_sims=N_SIMS,
+                    seed=SEED,
                 )
 
-    with conn:
-        # Because forecast_bands is derived, we rebuild it cleanly each run.
-        conn.execute("DROP TABLE IF EXISTS forecast_bands;")
+                p5, p10, p50, p90, p95 = np.percentile(
+                    paths, [5, 10, 50, 90, 95], axis=0)
 
-        conn.execute("""
-            CREATE TABLE forecast_bands (
-                week_start TEXT NOT NULL,
-                exercise TEXT NOT NULL,
-                scenario TEXT NOT NULL,
-                p5 REAL NOT NULL,
-                p10 REAL NOT NULL,
-                p50 REAL NOT NULL,
-                p90 REAL NOT NULL,
-                p95 REAL NOT NULL,
-                PRIMARY KEY (week_start, exercise, scenario)
-            );
-        """)
+                for i, wk in enumerate(forecast_weeks):
+                    rows_out.append(
+                        (
+                            wk.date().isoformat(),
+                            exercise,
+                            scenario,
+                            float(p5[i]),
+                            float(p10[i]),
+                            float(p50[i]),
+                            float(p90[i]),
+                            float(p95[i]),
+                        )
+                    )
 
-        conn.executemany("""
-            INSERT INTO forecast_bands
-            (week_start, exercise, scenario, p5, p10, p50, p90, p95)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-        """, rows_out)
+                    vintage_rows.append(
+                        (
+                            generated_at,
+                            wk.date().isoformat(),
+                            exercise,
+                            scenario,
+                            float(p5[i]),
+                            float(p10[i]),
+                            float(p50[i]),
+                            float(p90[i]),
+                            float(p95[i]),
+                        )
+                    )
 
-        n = conn.execute("SELECT COUNT(*) FROM forecast_bands;").fetchone()[0]
-        print(f"✅ Saved forecast_bands rows: {n}")
+        with conn:
+            # Because forecast_bands is derived, we rebuild it cleanly each run.
+            conn.execute("DROP TABLE IF EXISTS forecast_bands;")
+
+            conn.execute("""
+                CREATE TABLE forecast_bands (
+                    week_start TEXT NOT NULL,
+                    exercise TEXT NOT NULL,
+                    scenario TEXT NOT NULL,
+                    p5 REAL NOT NULL,
+                    p10 REAL NOT NULL,
+                    p50 REAL NOT NULL,
+                    p90 REAL NOT NULL,
+                    p95 REAL NOT NULL,
+                    PRIMARY KEY (week_start, exercise, scenario)
+                );
+            """)
+
+            conn.executemany("""
+                INSERT INTO forecast_bands
+                (week_start, exercise, scenario, p5, p10, p50, p90, p95)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+            """, rows_out)
+
+            n = conn.execute(
+                "SELECT COUNT(*) FROM forecast_bands;").fetchone()[0]
+            print(f"✅ Saved forecast_bands rows: {n}")
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS forecast_vintages(
+                    generated_at TEXT NOT NULL,
+                    forecast_week TEXT NOT NULL,
+                    exercise TEXT NOT NULL,
+                    scenario TEXT NOT NULL,
+                    p5 REAL NOT NULL,
+                    p10 REAL NOT NULL,
+                    p50 REAL NOT NULL,
+                    p90 REAL NOT NULL,
+                    p95 REAL NOT NULL,
+                    PRIMARY KEY (generated_at, forecast_week, exercise, scenario)
+                );
+            """)
+
+            conn.executemany("""
+                INSERT OR REPLACE INTO forecast_vintages
+                (generated_at, forecast_week, exercise, scenario, p5, p10, p50, p90, p95)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+            """, vintage_rows)
+
+            n_vintages = conn.execute(
+                "SELECT COUNT(*) FROM forecast_vintages;").fetchone()[0]
+            print(f"Saved rows in forecast_vintages: {n_vintages}")
+
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

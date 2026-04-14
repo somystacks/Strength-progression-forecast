@@ -37,29 +37,39 @@ def main() -> None:
         vintages["generated_at"] = pd.to_datetime(vintages["generated_at"])
         vintages["forecast_week"] = pd.to_datetime(vintages["forecast_week"])
 
-        latest_vintages = (
-            vintages.sort_values([
-                "exercise",
-                "forecast_week",
-                "generated_at"
-            ])
-            .groupby([
-                "exercise",
-                "forecast_week"
-            ], as_index=False)
-            .tail(1)
-        )
-
         df = weekly.merge(
-            latest_vintages,
+            vintages,
             left_on=["week_start", "exercise"],
             right_on=["forecast_week", "exercise"],
             how="inner",
         )
 
+        # Keep only forecasts that existed before the forecasted week occured
+        df = df[df["generated_at"] < df["forecast_week"]].copy()
+
+        # For each actual week, keep the latest available forecast vintage made
+        df = (
+            df.sort_values(["exercise", "forecast_week", "generated_at"])
+            .groupby(["exercise", "forecast_week"], as_index=False)
+            .tail(1)
+        )
+
+        print("\nMatched evalutation rows:")
+        print(
+            df[[
+                "exercise",
+                "generated_at",
+                "forecast_week",
+                "e1rm",
+                "p10",
+                "p50",
+                "p90",
+            ]].sort_values(["exercise", "forecast_week"]).to_string(index=False)
+        )
+
         # New Guard
         if df.empty:
-            print("No overlapping actual and forecast vintaget yet. Evaluation deferred.")
+            print("No overlapping actual and forecast vintages yet. Evaluation deferred.")
             return
 
         # Avoid division by zero

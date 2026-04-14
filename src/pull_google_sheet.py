@@ -1,11 +1,15 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 import pandas as pd
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 
 
 def fetch_sheet(creds_path, spreadsheet_id, sheet_range):

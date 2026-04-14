@@ -71,3 +71,27 @@ date,exercise,weight_kg,reps,set_number,session_name
 2026-03-27,Deadlift,85,5,1,Lower_hypertrophy_CDL
 2026-03-27,Deadlift,105,5,2,Lower_hypertrophy_CDL
 2026-03-27,Deadlift,130,5,3,Lower_hypertrophy_CDL
+2026-03-30,Bench Press,80,5,1,Upper_strength_chest
+2026-03-30,Bench Press,95,5,2,Upper_strength_chest
+2026-03-30,Bench Press,105,7,3,Upper_strength_chest
+2026-03-31,Squat,123.5,5,1,Lower_strength_squat
+2026-03-31,Squat,150,5,2,Lower_strength_squat
+2026-03-31,Squat,165,1,3,Lower_strength_squat
+2026-04-03,Deadlift,140,5,1,Lower_hypertrophy_CDL
+2026-04-03,Deadlift,163,5,2,Lower_hypertrophy_CDL
+2026-04-03,Deadlift,185,8,3,Lower_hypertrophy_CDL
+2026-04-06,Bench Press,85,3,1,Upper_strength_chest
+2026-04-06,Bench Press,97.5,3,2,Upper_strength_chest
+2026-04-06,Bench Press,110,6,3,Upper_strength_chest
+2026-04-07,Squat,120,3,1,Lower_strength_squat
+2026-04-07,Squat,135,3,2,Lower_strength_squat
+2026-04-07,Squat,155,5,3,Lower_strength_squat
+2026-04-10,Deadlift,153,3,1,Lower_hypertrophy_CDL
+2026-04-10,Deadlift,175,3,2,Lower_hypertrophy_CDL
+2026-04-10,Deadlift,195,5,3,Lower_hypertrophy_CDL
+2026-04-13,Bench Press,93,5,1,Upper_strength_chest
+2026-04-13,Bench Press,105,3,2,Upper_strength_chest
+2026-04-13,Bench Press,118,4,3,Upper_strength_chest
+2026-04-14,Squat,130,5,1,Lower_strength_squat
+2026-04-14,Squat,145,3,2,Lower_strength_squat
+2026-04-14,Squat,165,4,3,Lower_strength_squat

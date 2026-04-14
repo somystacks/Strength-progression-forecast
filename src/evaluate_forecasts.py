@@ -59,7 +59,7 @@ def main() -> None:
 
         # New Guard
         if df.empty:
-            print("No overlapping actual and forecast vintage yet. Evaluation deferred.")
+            print("No overlapping actual and forecast vintaget yet. Evaluation deferred.")
             return
 
         # Avoid division by zero

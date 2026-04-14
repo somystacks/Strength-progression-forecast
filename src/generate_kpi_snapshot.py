@@ -61,7 +61,14 @@ table = kpis[
         "Forecast p50 (kg)",
         "Uncertainty width p90–p10 (kg)"
     ]
-].round(1)
+].copy()
+
+numeric_cols = [
+    "Latest e1RM (kg)",
+    "Forecast p50 (kg)",
+    "Uncertainty width p90–p10 (kg)"
+]
+table[numeric_cols] = table[numeric_cols].round(1)
 
 markdown = table.to_markdown(index=False)
 

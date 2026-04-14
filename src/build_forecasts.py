@@ -43,7 +43,10 @@ def estimate_sigma_from_diffs(weekly: pd.DataFrame) -> pd.Series:
         if len(s) < 3:
             return 0.5  # safe default with very little data
 
-        lo, hi = s.quantile([0.2, 0.8])
+        # Extract scalars to avoid pandas 2.x Series alignment warnings
+        lo = s.quantile(0.2)
+        hi = s.quantile(0.8)
+        
         # Remove extreme negative drops (deloads) and clip outliers
         s_clean = s[(s > -10) & (s >= lo) & (s <= hi)]
         s_clean = s_clean.clip(lower=-5, upper=5)
@@ -55,7 +58,6 @@ def estimate_sigma_from_diffs(weekly: pd.DataFrame) -> pd.Series:
 
         return max(std, 0.25)
 
-    # GroupBy apply directly on the series avoids index alignment warnings in pandas 2.x
     sigma = wk.groupby("exercise")["e1rm"].apply(robust_std)
 
     sigma_floor = {
@@ -87,16 +89,13 @@ def simulate_paths(
     rng = np.random.default_rng(seed)
     t = np.arange(weeks_ahead)
 
-    # Diminishing returns with adherence multiplier
     expected_gain = (delta0 / np.log1p(t + k / 2)) * adherence_mult
     expected_gain = np.minimum(expected_gain, delta0)
 
     noise = rng.normal(loc=0, scale=sigma, size=(n_sims, weeks_ahead))
     increments = expected_gain + noise
 
-    # Cumulative sum starting from e0
     paths = np.cumsum(increments, axis=1) + e0
-    # Enforce a hard floor at 85% of starting e1RM
     paths = np.maximum(paths, e0 * 0.85)
 
     return paths
@@ -105,15 +104,15 @@ def simulate_paths(
 def choose_anchor_e1rm(exercise_history: pd.DataFrame, lookback: int = 3) -> float:
     hist = exercise_history.sort_values("week_start").tail(lookback)
     if hist.empty:
-        return 0.0  # Fallback; should be caught earlier in main()
+        return 0.0
     return float(hist["e1rm"].max())
 
 
 def classify_week_type(weekly: pd.DataFrame) -> pd.DataFrame:
-    """Vectorized week classification. Replaces slow groupby.apply."""
     out = weekly.copy()
     medians = out.groupby("exercise")["e1rm"].median()
-    thresholds = out["exercise"].map(lambda ex: medians[ex] * 0.85)
+    # Use .map with a dict/Series lookup for vectorization
+    thresholds = out["exercise"].map(medians) * 0.85
     out["week_type"] = np.where(out["e1rm"] < thresholds, "low", "high")
     return out
 
@@ -128,22 +127,20 @@ def main() -> None:
             "SELECT * FROM weekly_e1rm ORDER BY week_start, exercise", conn
         )
         if weekly.empty:
-            raise ValueError(
-                "weekly_e1rm is empty. Run compute_weekly_e1rm.py first.")
+            raise ValueError("weekly_e1rm is empty. Run compute_weekly_e1rm.py first.")
 
         weekly = weekly[weekly["exercise"].isin(ALLOWED_EXERCISES)].copy()
-        weekly["week_start"] = pd.to_datetime(
-            weekly["week_start"], errors="raise")
+        weekly["week_start"] = pd.to_datetime(weekly["week_start"], errors="raise")
 
         weekly = classify_week_type(weekly)
         weekly_high = weekly[weekly["week_type"] == "high"].copy()
 
         print("\nWeekly data with week_type")
-        print(weekly[["week_start", "exercise", "e1rm",
-              "week_type"]].to_string(index=False))
+        print(weekly[["week_start", "exercise", "e1rm", "week_type"]].to_string(index=False))
 
         last_week = weekly["week_start"].max()
-        # Note: freq="W-MON" triggers a warning in pandas 2.2+. Use freq="W" or pd.offsets.Week(weekday=0) if strict.
+        # Pandas 2.2+ compat: 'W-MON' triggers a FutureWarning. 
+        # Use pd.offsets.Week(weekday=0) for strict Monday alignment.
         forecast_weeks = pd.date_range(
             start=last_week + pd.Timedelta(weeks=1), periods=WEEKS_AHEAD, freq="W-MON"
         )
@@ -152,26 +149,22 @@ def main() -> None:
         for exercise, group in weekly_high.groupby("exercise"):
             anchor_by_lift[exercise] = choose_anchor_e1rm(group, lookback=3)
 
-        # FIX: Compute sigma on ALL weekly data, not just "high" weeks.
-        # Filtering out deloads before diffing artificially inflates WoW deltas.
         sigma_by_lift = estimate_sigma_from_diffs(weekly)
 
-        rows_out: List[Tuple[str, str, str, float,
-                             float, float, float, float]] = []
-        vintage_rows: List[Tuple[str, str, str, str,
-                                 float, float, float, float, float]] = []
+        rows_out: List[Tuple[str, str, str, float, float, float, float, float]] = []
+        vintage_rows: List[Tuple[str, str, str, str, float, float, float, float, float]] = []
 
         for exercise in sorted(ALLOWED_EXERCISES):
             if exercise not in anchor_by_lift:
-                print(
-                    f"Skipping {exercise}: no 'high' week data to anchor forecast.")
+                print(f"Skipping {exercise}: no 'high' week data to anchor forecast.")
                 continue
 
+            # ✅ FIX: Define delta0 & sigma BEFORE printing them
             e0 = float(anchor_by_lift[exercise])
-            print(f"{exercise}: anchor e0 = {e0:.2f}")
-
             delta0 = float(BASELINE_GAINS.get(exercise, 0.5))
             sigma = float(sigma_by_lift.get(exercise, 1.0))
+
+            print(f"{exercise}: anchor e0 = {e0:.2f}, delta0 = {delta0:.2f}, sigma = {sigma:.2f}")
 
             for scenario, mult in SCENARIOS.items():
                 paths = simulate_paths(
@@ -179,14 +172,12 @@ def main() -> None:
                     adherence_mult=mult, sigma=sigma, k=K, n_sims=N_SIMS, seed=SEED
                 )
 
-                p5, p10, p50, p90, p95 = np.percentile(
-                    paths, [5, 10, 50, 90, 95], axis=0)
+                p5, p10, p50, p90, p95 = np.percentile(paths, [5, 10, 50, 90, 95], axis=0)
 
                 for i, wk in enumerate(forecast_weeks):
                     row = (
                         wk.date().isoformat(), exercise, scenario,
-                        float(p5[i]), float(p10[i]), float(
-                            p50[i]), float(p90[i]), float(p95[i])
+                        float(p5[i]), float(p10[i]), float(p50[i]), float(p90[i]), float(p95[i])
                     )
                     rows_out.append(row)
                     vintage_rows.append((generated_at, *row))
@@ -205,8 +196,7 @@ def main() -> None:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
             """, rows_out)
 
-            n = conn.execute(
-                "SELECT COUNT(*) FROM forecast_bands;").fetchone()[0]
+            n = conn.execute("SELECT COUNT(*) FROM forecast_bands;").fetchone()[0]
             print(f"✅ Saved forecast_bands rows: {n}")
 
             conn.execute("""
@@ -223,8 +213,7 @@ def main() -> None:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
             """, vintage_rows)
 
-            n_vintages = conn.execute(
-                "SELECT COUNT(*) FROM forecast_vintages;").fetchone()[0]
+            n_vintages = conn.execute("SELECT COUNT(*) FROM forecast_vintages;").fetchone()[0]
             print(f"✅ Saved rows in forecast_vintages: {n_vintages}")
 
     except Exception as e:

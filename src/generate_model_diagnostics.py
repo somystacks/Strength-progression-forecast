@@ -151,6 +151,10 @@ def main() -> None:
     # Handle missing forecast rows gracefully before rounding
     diagnostics[numeric_cols] = diagnostics[numeric_cols].round(2)
 
+    date_cols = ["latest_actual_week", "latest_forecast_week"]
+    for col in date_cols:
+        diagnostics[col] = pd.to_datetime(diagnostics[col]).dt.date
+    
     markdown = diagnostics.to_markdown(index=False)
     OUTPUT_PATH.write_text(markdown)
     print(f"✅ Model diagnostics written to {OUTPUT_PATH}")

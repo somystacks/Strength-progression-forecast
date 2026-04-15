@@ -24,6 +24,7 @@ def main() -> None:
     run([py, "src/build_alerts.py"])
     run([py, "src/evaluate_forecasts.py"])
     run([py, "src/generate_kpi_snapshot.py"])
+    run([py, "src/generate_model_diagnostics.py"])
     run([py, "src/generate_forecast_plots.py"])
 
     print("\n✅ Pipeline refresh complete: pull → ingest → weekly_e1rm → forecast_bands → build_alerts → evaluate_forecast → kpi_snapshot → plots")
